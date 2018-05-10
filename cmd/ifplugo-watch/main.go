@@ -37,7 +37,7 @@ func main() {
 	go func() {
 		for v := range outchan {
 			for k, v := range v.Ifaces {
-				fmt.Printf("%s: %d\n", k, v)
+				fmt.Printf("%s: %s\n", k, v)
 			}
 		}
 	}()

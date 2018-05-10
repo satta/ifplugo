@@ -47,6 +47,17 @@ var statusLookup = map[C.interface_status_t]InterfaceStatus{
 	C.IFSTATUS_ERR:  InterfaceErr,
 }
 
+func (s InterfaceStatus) String() string {
+	switch s {
+	case InterfaceUp:
+		return "link"
+	case InterfaceDown:
+		return "no link"
+	default:
+		return "error"
+	}
+}
+
 // GetLinkStatus returns, for a given interface, the corresponding status code
 // at the time of the call. If any error was encountered (e.g. invalid
 // interface, etc.) we simply return ifplugo.InterfaceErr.

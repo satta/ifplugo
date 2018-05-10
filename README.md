@@ -46,7 +46,17 @@ Also, obviously, this is Linux-only.
 
 ## Example
 
-See the simple command line tools in `cmd/*` for more examples of how to use ifplugo.
+See the source code of the simple command line tools in `cmd/*` for more simple examples of how to use ifplugo.
+
+```
+$ ifplugo-watch eth0,eth1,eth2,eth3
+eth0: link
+eth1: link
+eth2: link
+eth3: no link
+^C
+$
+```
 
 ## Authors
 
