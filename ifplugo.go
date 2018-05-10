@@ -83,6 +83,9 @@ type LinkStatusMonitor struct {
 	Ifaces     []string
 }
 
+// LinkStatusSample is a single description of the link status at a given time.
+// Changed is set to true if the state is different than the previously emitted
+// one.
 type LinkStatusSample struct {
 	Changed bool
 	Ifaces  map[string]InterfaceStatus
