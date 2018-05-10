@@ -32,11 +32,12 @@ func main() {
 	}
 	ifaces := strings.Split(os.Args[1], ",")
 
-	outchan := make(chan map[string]ifplugo.InterfaceStatus)
+	outchan := make(chan ifplugo.LinkStatusSample)
 	mon := ifplugo.MakeLinkStatusMonitor(2*time.Second, ifaces, outchan)
 	go func() {
 		for v := range outchan {
-			for k, v := range v {
+			fmt.Println("changed: ", v.Changed)
+			for k, v := range v.Ifaces {
 				fmt.Printf("%s: %d\n", k, v)
 			}
 		}

@@ -68,7 +68,7 @@ func TestMonitor(t *testing.T) {
 	}
 
 	waitChan := make(chan bool)
-	outChan := make(chan map[string]InterfaceStatus)
+	outChan := make(chan LinkStatusSample)
 	mon := MakeLinkStatusMonitor(2*time.Second, ifaces, outChan)
 
 	var resMutex sync.Mutex
@@ -77,10 +77,11 @@ func TestMonitor(t *testing.T) {
 	go func(c *int) {
 		for o := range outChan {
 			resMutex.Lock()
-			for k, _ := range o {
+			for k := range o.Ifaces {
 				results[k]++
 			}
 			(*c)++
+			log.Println("Got status, changed: ", o.Changed)
 			resMutex.Unlock()
 		}
 		close(waitChan)
@@ -100,7 +101,7 @@ func TestMonitor(t *testing.T) {
 		}
 	}
 
-	for k, _ := range results {
+	for k := range results {
 		found := false
 		for _, i := range ifaces {
 			if i == k {

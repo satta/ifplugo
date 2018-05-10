@@ -76,10 +76,16 @@ func GetLinkStatus(iface string) (InterfaceStatus, error) {
 // via a specified channel.
 type LinkStatusMonitor struct {
 	PollPeriod time.Duration
-	OutChan    chan map[string]InterfaceStatus
+	LastStatus map[string]InterfaceStatus
+	OutChan    chan LinkStatusSample
 	CloseChan  chan bool
 	ClosedChan chan bool
 	Ifaces     []string
+}
+
+type LinkStatusSample struct {
+	Changed bool
+	Ifaces  map[string]InterfaceStatus
 }
 
 // MakeLinkStatusMonitor creates a new LinkStatusMonitor, polling each interval
@@ -87,27 +93,38 @@ type LinkStatusMonitor struct {
 // ifaces and outputting results as a map of interface->status pairs in the
 // channel outChan.
 func MakeLinkStatusMonitor(pollPeriod time.Duration, ifaces []string,
-	outChan chan map[string]InterfaceStatus) *LinkStatusMonitor {
+	outChan chan LinkStatusSample) *LinkStatusMonitor {
 	a := &LinkStatusMonitor{
 		PollPeriod: pollPeriod,
 		OutChan:    outChan,
 		CloseChan:  make(chan bool),
 		ClosedChan: make(chan bool),
 		Ifaces:     ifaces,
+		LastStatus: make(map[string]InterfaceStatus),
 	}
 	return a
 }
 
 func (a *LinkStatusMonitor) flush() error {
-	out := make(map[string]InterfaceStatus)
+	out := LinkStatusSample{
+		Ifaces:  make(map[string]InterfaceStatus),
+		Changed: false,
+	}
+
 	for _, iface := range a.Ifaces {
 		v, err := GetLinkStatus(iface)
 		if err != nil {
-			out[iface] = InterfaceErr
+			out.Ifaces[iface] = InterfaceErr
 		}
-		out[iface] = v
+		out.Ifaces[iface] = v
+		if a.LastStatus[iface] != out.Ifaces[iface] {
+			out.Changed = true
+			a.LastStatus[iface] = out.Ifaces[iface]
+		}
 	}
+
 	a.OutChan <- out
+
 	return nil
 }
 
