@@ -1,0 +1,5 @@
+This source code includes parts of ifplugd, written by Lennart Poettering 
+<mzvscyhtq (at) 0pointer (dot) de> (Copyright 2002-2005).
+
+The Go component of the code was written by Sascha Steinbiss 
+<sascha@steinbiss.name>.
