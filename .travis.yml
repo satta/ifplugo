@@ -1,5 +1,10 @@
 language: go
 
+addons:
+  apt:
+    packages:
+    - libdaemon-dev
+
 go:
   - 1.9
   - master 
