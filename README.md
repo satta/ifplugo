@@ -1,5 +1,8 @@
 # ifplugo
 
+[![GoDoc](https://godoc.org/github.com/satta/ifplugo?status.svg)](http://godoc.org/github.com/satta/ifplugo)
+[![Build Status](https://travis-ci.org/satta/ifplugo.svg?branch=master)](https://travis-ci.org/satta/ifplugo)
+
 ifplugo delivers network interface link information and link changes. It does this (on Linux) by using code from [ifplugd](http://0pointer.de/lennart/projects/ifplugd/) to gather the necessary status information, then emits periodic status summaries on a given channel. This summary (`LinkStatusSample`) specifies whether the link status has changed and what the current state of each interface is:
 
 ```Go
