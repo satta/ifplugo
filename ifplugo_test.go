@@ -77,8 +77,9 @@ func TestMonitor(t *testing.T) {
 	go func(c *int) {
 		for o := range outChan {
 			resMutex.Lock()
-			for k := range o.Ifaces {
+			for k, v := range o.Ifaces {
 				results[k]++
+				log.Printf("got status for %s: %s", k, v)
 			}
 			(*c)++
 			resMutex.Unlock()
