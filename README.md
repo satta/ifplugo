@@ -7,8 +7,8 @@ ifplugo delivers network interface link information and link changes. It does th
 
 ```Go
 type LinkStatusSample struct {
-	Changed bool
-	Ifaces  map[string]InterfaceStatus
+    Changed bool
+    Ifaces  map[string]InterfaceStatus
 }
 ```
 
@@ -28,7 +28,7 @@ go func() {
 mon.Run()
 ```
 
-### Prerequisites
+## Prerequisites
 
 To build ifplugo, one needs [libdaemon](http://0pointer.de/lennart/projects/libdaemon/) in addition to Go and C compilers.
 Also, obviously, this is Linux-only.
