@@ -36,7 +36,6 @@ func main() {
 	mon := ifplugo.MakeLinkStatusMonitor(2*time.Second, ifaces, outchan)
 	go func() {
 		for v := range outchan {
-			fmt.Println("changed: ", v.Changed)
 			for k, v := range v.Ifaces {
 				fmt.Printf("%s: %d\n", k, v)
 			}

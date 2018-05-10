@@ -87,8 +87,7 @@ type LinkStatusMonitor struct {
 // Changed is set to true if the state is different than the previously emitted
 // one.
 type LinkStatusSample struct {
-	Changed bool
-	Ifaces  map[string]InterfaceStatus
+	Ifaces map[string]InterfaceStatus
 }
 
 // MakeLinkStatusMonitor creates a new LinkStatusMonitor, polling each interval
@@ -110,24 +109,26 @@ func MakeLinkStatusMonitor(pollPeriod time.Duration, ifaces []string,
 
 func (a *LinkStatusMonitor) flush() error {
 	out := LinkStatusSample{
-		Ifaces:  make(map[string]InterfaceStatus),
-		Changed: false,
+		Ifaces: make(map[string]InterfaceStatus),
 	}
 
+	changed := false
 	for _, iface := range a.Ifaces {
 		v, err := GetLinkStatus(iface)
 		if err != nil {
 			out.Ifaces[iface] = InterfaceErr
 		}
 		out.Ifaces[iface] = v
+
 		if a.LastStatus[iface] != out.Ifaces[iface] {
-			out.Changed = true
+			changed = true
 			a.LastStatus[iface] = out.Ifaces[iface]
 		}
 	}
 
-	a.OutChan <- out
-
+	if changed {
+		a.OutChan <- out
+	}
 	return nil
 }
 

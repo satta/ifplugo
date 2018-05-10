@@ -81,7 +81,6 @@ func TestMonitor(t *testing.T) {
 				results[k]++
 			}
 			(*c)++
-			log.Println("Got status, changed: ", o.Changed)
 			resMutex.Unlock()
 		}
 		close(waitChan)
@@ -92,8 +91,8 @@ func TestMonitor(t *testing.T) {
 	mon.Stop()
 
 	resMutex.Lock()
-	if cnt != 2 {
-		t.Fatalf("expected 2 outputs, got %d", cnt)
+	if cnt != 1 {
+		t.Fatalf("expected 1 output, got %d", cnt)
 	}
 	for _, v := range ifaces {
 		if results[v] == 0 {
