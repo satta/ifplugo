@@ -33,12 +33,14 @@ import (
 type InterfaceStatus int
 
 const (
+	// InterfaceUnknown represents an interface with no assigned state.
+	InterfaceUnknown InterfaceStatus = iota
 	// InterfaceUp represents an interface with a cable connected.
-	InterfaceUp InterfaceStatus = C.IFSTATUS_UP
+	InterfaceUp
 	// InterfaceDown represents an interface with no cable connected.
-	InterfaceDown InterfaceStatus = C.IFSTATUS_DOWN
+	InterfaceDown
 	// InterfaceErr represents an interface with errors querying its status.
-	InterfaceErr InterfaceStatus = C.IFSTATUS_ERR
+	InterfaceErr
 )
 
 var statusLookup = map[C.interface_status_t]InterfaceStatus{
@@ -53,8 +55,10 @@ func (s InterfaceStatus) String() string {
 		return "link"
 	case InterfaceDown:
 		return "no link"
-	default:
+	case InterfaceErr:
 		return "error"
+	default:
+		return "unknown"
 	}
 }
 
@@ -127,7 +131,7 @@ func (a *LinkStatusMonitor) flush() error {
 	for _, iface := range a.Ifaces {
 		v, err := GetLinkStatus(iface)
 		if err != nil {
-			out.Ifaces[iface] = InterfaceErr
+			out.Ifaces[iface] = InterfaceUnknown
 		}
 		out.Ifaces[iface] = v
 
