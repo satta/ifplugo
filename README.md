@@ -15,12 +15,14 @@ where `InterfaceStatus` can be:
 
 ```Go
 const (
+	// InterfaceUnknown represents an interface with no assigned state.
+	InterfaceUnknown InterfaceStatus = iota
 	// InterfaceUp represents an interface with a cable connected.
-	InterfaceUp InterfaceStatus = C.IFSTATUS_UP
+	InterfaceUp
 	// InterfaceDown represents an interface with no cable connected.
-	InterfaceDown InterfaceStatus = C.IFSTATUS_DOWN
+	InterfaceDown
 	// InterfaceErr represents an interface with errors querying its status.
-	InterfaceErr InterfaceStatus = C.IFSTATUS_ERR
+	InterfaceErr
 )
 ```
 
