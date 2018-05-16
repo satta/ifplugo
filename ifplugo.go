@@ -71,6 +71,7 @@ func GetLinkStatus(iface string) (InterfaceStatus, error) {
 	if err != nil {
 		return InterfaceErr, err
 	}
+	defer syscall.Close(fd)
 
 	e := C.interface_detect_beat_ethtool(C.int(fd), C.CString(iface))
 	if e == C.IFSTATUS_ERR {
