@@ -99,6 +99,7 @@ type LinkStatusMonitor struct {
 	LastStats              map[string]net.IOCountersStat
 	checkIncomingDelta     bool
 	checkIncomingThreshold uint64
+	configuredByLink       map[string]bool
 	OutChan                chan LinkStatusSample
 	CloseChan              chan bool
 	ClosedChan             chan bool
@@ -119,13 +120,14 @@ type LinkStatusSample struct {
 func MakeLinkStatusMonitor(pollPeriod time.Duration, ifaces []string,
 	outChan chan LinkStatusSample) *LinkStatusMonitor {
 	a := &LinkStatusMonitor{
-		PollPeriod: pollPeriod,
-		OutChan:    outChan,
-		CloseChan:  make(chan bool),
-		ClosedChan: make(chan bool),
-		Ifaces:     ifaces,
-		LastStatus: make(map[string]InterfaceStatus),
-		LastStats:  make(map[string]net.IOCountersStat),
+		PollPeriod:       pollPeriod,
+		OutChan:          outChan,
+		CloseChan:        make(chan bool),
+		ClosedChan:       make(chan bool),
+		Ifaces:           ifaces,
+		LastStatus:       make(map[string]InterfaceStatus),
+		LastStats:        make(map[string]net.IOCountersStat),
+		configuredByLink: make(map[string]bool),
 	}
 	return a
 }
@@ -151,30 +153,39 @@ func (a *LinkStatusMonitor) flush() error {
 		Ifaces: make(map[string]InterfaceStatus),
 	}
 
-	changed := false
+	// try to get status via link
 	for _, iface := range a.Ifaces {
 		v, err := GetLinkStatus(iface)
 		if err != nil {
 			out.Ifaces[iface] = InterfaceUnknown
 		}
 		out.Ifaces[iface] = v
-
-		if a.LastStatus[iface] != out.Ifaces[iface] {
-			changed = true
-			a.LastStatus[iface] = out.Ifaces[iface]
+		if v == InterfaceUp {
+			// this interface has been seen up once via actual link status
+			// let's record this fact so we won't override this from data
+			// flow info
+			if _, ok := a.configuredByLink[iface]; !ok {
+				a.configuredByLink[iface] = true
+			}
 		}
+		log.Debug("link status: ", iface, v)
 	}
 
-	ifstats, err := net.IOCounters(true)
-	if err != nil {
-		return err
-	}
-
+	// also try to determine status from data flow
 	if a.checkIncomingDelta {
+		ifstats, err := net.IOCounters(true)
+		if err != nil {
+			return err
+		}
 		for _, stat := range ifstats {
 			for _, iface := range a.Ifaces {
 				if stat.Name == iface {
-					log.Debugf("%s, %d/%d -> %d", a.LastStatus[iface], stat.BytesRecv, a.LastStats[iface].BytesRecv, myDiffAbs(stat.BytesRecv, a.LastStats[iface].BytesRecv))
+					if _, ok := a.configuredByLink[iface]; ok {
+						if a.configuredByLink[iface] {
+							continue
+						}
+					}
+					log.Debugf("%s, %s, %d/%d -> %d", iface, a.LastStatus[iface], stat.BytesRecv, a.LastStats[iface].BytesRecv, myDiffAbs(stat.BytesRecv, a.LastStats[iface].BytesRecv))
 					if a.LastStatus[iface] != InterfaceUp {
 						if myDiffAbs(stat.BytesRecv, a.LastStats[iface].BytesRecv) > a.checkIncomingThreshold {
 							out.Ifaces[iface] = InterfaceUp
@@ -190,14 +201,18 @@ func (a *LinkStatusMonitor) flush() error {
 							out.Ifaces[iface] = a.LastStatus[iface]
 						}
 					}
-					if a.LastStatus[iface] != out.Ifaces[iface] {
-						log.Debugf("%s <-> %s", a.LastStatus[iface], out.Ifaces[iface])
-						changed = true
-						a.LastStatus[iface] = out.Ifaces[iface]
-					}
+					a.LastStats[iface] = stat
 				}
 			}
-			a.LastStats[stat.Name] = stat
+		}
+	}
+
+	changed := false
+	for iface := range out.Ifaces {
+		if a.LastStatus[iface] != out.Ifaces[iface] {
+			changed = true
+			log.Debugf("status changed %s <-> %s", a.LastStatus[iface], out.Ifaces[iface])
+			a.LastStatus[iface] = out.Ifaces[iface]
 		}
 	}
 
