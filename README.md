@@ -15,14 +15,14 @@ where `InterfaceStatus` can be:
 
 ```Go
 const (
-	// InterfaceUnknown represents an interface with no assigned state.
-	InterfaceUnknown InterfaceStatus = iota
-	// InterfaceUp represents an interface with a cable connected.
-	InterfaceUp
-	// InterfaceDown represents an interface with no cable connected.
-	InterfaceDown
-	// InterfaceErr represents an interface with errors querying its status.
-	InterfaceErr
+    // InterfaceUnknown represents an interface with no assigned state.
+    InterfaceUnknown InterfaceStatus = iota
+    // InterfaceUp represents an interface with a cable connected.
+    InterfaceUp
+    // InterfaceDown represents an interface with no cable connected.
+    InterfaceDown
+    // InterfaceErr represents an interface with errors querying its status.
+    InterfaceErr
 )
 ```
 
@@ -41,6 +41,14 @@ go func() {
 mon.Run()
 ```
 
+It is also possible to determine the status of an interface from whether any data is flowing or not. This can be useful if, for example, the interesting interface is only connected to one way of the physical connection (RX or TX) or for other reasons can not complete autonegotiation. Use `CheckIncomingDelta()` in this case, it allows to also mark an interface as 'up' and seeing traffic if a certain threshold of received bytes is exceeded during one polling period. Example:
+
+```Go
+mon.CheckIncomingDelta(true, 1000)
+```
+
+This would, for example, also mark an interface as up if more than 1000 bytes are received during the polling period, and mark the interface as down if there are ever less than 1000 bytes received in a polling period.
+
 ## Prerequisites
 
 To build ifplugo, one needs [libdaemon](http://0pointer.de/lennart/projects/libdaemon/) in addition to Go and C compilers.
@@ -50,7 +58,7 @@ Also, obviously, this is Linux-only.
 
 See the source code of the simple command line tools in `cmd/*` for more simple examples of how to use ifplugo.
 
-```
+```Text
 $ ifplugo-watch eth0,eth1,eth2,eth3
 eth0: link
 eth1: link
@@ -62,11 +70,9 @@ $
 
 ## Authors
 
-This source code includes parts of ifplugd, written by Lennart Poettering 
-<mzvscyhtq (at) 0pointer (dot) de>.
+This source code includes parts of ifplugd, written by Lennart Poettering <mzvscyhtq (at) 0pointer (dot) de>.
 
-The Go component of the code was written by Sascha Steinbiss 
-<sascha (at) steinbiss (dot) name>.
+The Go component of the code was written by Sascha Steinbiss <sascha (at) steinbiss (dot) name>.
 
 ## License
 

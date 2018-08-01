@@ -27,6 +27,9 @@ import (
 import (
 	"syscall"
 	"time"
+
+	"github.com/shirou/gopsutil/net"
+	log "github.com/sirupsen/logrus"
 )
 
 // InterfaceStatus represents the link status of an interface.
@@ -91,12 +94,15 @@ func GetLinkStatus(iface string) (InterfaceStatus, error) {
 // periodically checks a list of given interfaces and returns their link status
 // via a specified channel.
 type LinkStatusMonitor struct {
-	PollPeriod time.Duration
-	LastStatus map[string]InterfaceStatus
-	OutChan    chan LinkStatusSample
-	CloseChan  chan bool
-	ClosedChan chan bool
-	Ifaces     []string
+	PollPeriod             time.Duration
+	LastStatus             map[string]InterfaceStatus
+	LastStats              map[string]net.IOCountersStat
+	checkIncomingDelta     bool
+	checkIncomingThreshold uint64
+	OutChan                chan LinkStatusSample
+	CloseChan              chan bool
+	ClosedChan             chan bool
+	Ifaces                 []string
 }
 
 // LinkStatusSample is a single description of the link status at a given time.
@@ -119,8 +125,25 @@ func MakeLinkStatusMonitor(pollPeriod time.Duration, ifaces []string,
 		ClosedChan: make(chan bool),
 		Ifaces:     ifaces,
 		LastStatus: make(map[string]InterfaceStatus),
+		LastStats:  make(map[string]net.IOCountersStat),
 	}
 	return a
+}
+
+// CheckIncomingDelta allows to enable the optional behaviour to also consider
+// an interface as 'up' if traffic is received on it. This is, for example,
+// necessary in passive monitoring setups where there is no physical link
+// detected (e.g. using taps that only provide RX lines).
+func (a *LinkStatusMonitor) CheckIncomingDelta(val bool, threshold uint64) {
+	a.checkIncomingDelta = val
+	a.checkIncomingThreshold = threshold
+}
+
+func myDiffAbs(new, old uint64) uint64 {
+	if new > old {
+		return new - old
+	}
+	return 0
 }
 
 func (a *LinkStatusMonitor) flush() error {
@@ -142,6 +165,42 @@ func (a *LinkStatusMonitor) flush() error {
 		}
 	}
 
+	ifstats, err := net.IOCounters(true)
+	if err != nil {
+		return err
+	}
+
+	if a.checkIncomingDelta {
+		for _, stat := range ifstats {
+			for _, iface := range a.Ifaces {
+				if stat.Name == iface {
+					log.Debugf("%s, %d/%d -> %d", a.LastStatus[iface], stat.BytesRecv, a.LastStats[iface].BytesRecv, myDiffAbs(stat.BytesRecv, a.LastStats[iface].BytesRecv))
+					if a.LastStatus[iface] != InterfaceUp {
+						if myDiffAbs(stat.BytesRecv, a.LastStats[iface].BytesRecv) > a.checkIncomingThreshold {
+							out.Ifaces[iface] = InterfaceUp
+							log.Debugf("changed %s to up", iface)
+						} else {
+							out.Ifaces[iface] = a.LastStatus[iface]
+						}
+					} else {
+						if myDiffAbs(stat.BytesRecv, a.LastStats[iface].BytesRecv) <= a.checkIncomingThreshold {
+							out.Ifaces[iface] = InterfaceDown
+							log.Debugf("changed %s to down", iface)
+						} else {
+							out.Ifaces[iface] = a.LastStatus[iface]
+						}
+					}
+					if a.LastStatus[iface] != out.Ifaces[iface] {
+						log.Debugf("%s <-> %s", a.LastStatus[iface], out.Ifaces[iface])
+						changed = true
+						a.LastStatus[iface] = out.Ifaces[iface]
+					}
+				}
+			}
+			a.LastStats[stat.Name] = stat
+		}
+	}
+
 	if changed {
 		a.OutChan <- out
 	}
@@ -151,19 +210,14 @@ func (a *LinkStatusMonitor) flush() error {
 // Run starts watching interfaces in the background.
 func (a *LinkStatusMonitor) Run() {
 	go func() {
-		i := 0 * time.Second
+		a.flush()
 		for {
 			select {
 			case <-a.CloseChan:
 				close(a.ClosedChan)
 				return
-			default:
-				if i >= a.PollPeriod {
-					a.flush()
-					i = 0 * time.Second
-				}
-				time.Sleep(1 * time.Second)
-				i += 1 * time.Second
+			case <-time.After(a.PollPeriod):
+				a.flush()
 			}
 		}
 	}()
