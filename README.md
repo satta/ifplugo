@@ -1,7 +1,7 @@
 # ifplugo
 
+[![GoDoc](https://godoc.org/github.com/satta/ifplugo?status.svg)](http://godoc.org/github.com/satta/ifplugo)
 [![CircleCI](https://circleci.com/gh/satta/ifplugo.svg?style=shield)](https://circleci.com/gh/satta/ifplugo)
-[![Build Status](https://travis-ci.org/satta/ifplugo.svg?branch=master)](https://travis-ci.org/satta/ifplugo)
 
 ifplugo delivers network interface link information and link changes. It does this (on Linux) by using code from [ifplugd](http://0pointer.de/lennart/projects/ifplugd/) to gather the necessary status information, then emits a status summary on a given channel. This summary (`LinkStatusSample`) is emitted on the first invocation and each time the state changes for at least one monitored interface.
 
