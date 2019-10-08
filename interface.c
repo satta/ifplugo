@@ -41,74 +41,19 @@
 #include "interface.h"
 #include "wireless.h"
 
-#include <libdaemon/dlog.h>
-
-void interface_up(int fd, char *iface) {
-    struct ifreq ifr;
-
-    memset(&ifr, 0, sizeof(ifr));
-    strncpy(ifr.ifr_name, iface, sizeof(ifr.ifr_name)-1);
-    
-    if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
-        if (interface_do_message)
-            daemon_log(LOG_WARNING, "Warning: Could not get interface flags.");
-        
-        return;
-    }
-
-    if ((ifr.ifr_flags & IFF_UP) == IFF_UP)
-        return;
-    
-    if (ioctl(fd, SIOCGIFADDR, &ifr) < 0) {
-        if (interface_do_message)
-            daemon_log(LOG_WARNING, "Warning: Could not get interface address.");
-    } else if (ifr.ifr_addr.sa_family != AF_INET) {
-        if (interface_do_message)
-            daemon_log(LOG_WARNING, "Warning: The interface is not IP-based.");
-    } else {
-        ((struct sockaddr_in *)(&ifr.ifr_addr))->sin_addr.s_addr = INADDR_ANY;
-        if (ioctl(fd, SIOCSIFADDR, &ifr) < 0) {
-            if (interface_do_message)
-                daemon_log(LOG_WARNING, "Warning: Could not set interface address.");
-        }
-    }
-
-    if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
-        if (interface_do_message)
-            daemon_log(LOG_WARNING, "Warning: Could not get interface flags.");
-        
-        return;
-    }
-    
-    ifr.ifr_flags |= IFF_UP;
-    
-    if (ioctl(fd, SIOCSIFFLAGS, &ifr) < 0)
-        if (interface_do_message)
-            daemon_log(LOG_WARNING, "Warning: Could not set interface flags.");
-}
-
 interface_status_t interface_detect_beat_mii(int fd, char *iface) {
     struct ifreq ifr;
-    
-    if (interface_auto_up)
-        interface_up(fd, iface);
     
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, iface, sizeof(ifr.ifr_name)-1);
 
     if (ioctl(fd, SIOCGMIIPHY, &ifr) == -1) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "SIOCGMIIPHY failed: %s", strerror(errno));
-        
         return IFSTATUS_ERR;
     }
 
     ((unsigned short*) &ifr.ifr_data)[1] = 1;
 
     if (ioctl(fd, SIOCGMIIREG, &ifr) == -1) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "SIOCGMIIREG failed: %s", strerror(errno));
-        
         return IFSTATUS_ERR;
     }
 
@@ -118,25 +63,16 @@ interface_status_t interface_detect_beat_mii(int fd, char *iface) {
 interface_status_t interface_detect_beat_priv(int fd, char *iface) {
     struct ifreq ifr;
     
-    if (interface_auto_up)
-        interface_up(fd, iface);
-    
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, iface, sizeof(ifr.ifr_name)-1);
 
     if (ioctl(fd, SIOCDEVPRIVATE, &ifr) == -1) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "SIOCDEVPRIVATE failed: %s", strerror(errno));
-        
         return IFSTATUS_ERR;
     }
 
     ((unsigned short*) &ifr.ifr_data)[1] = 1;
 
     if (ioctl(fd, SIOCDEVPRIVATE+1, &ifr) == -1) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "SIOCDEVPRIVATE+1 failed: %s", strerror(errno));
-        
         return IFSTATUS_ERR;
     }
 
@@ -148,9 +84,6 @@ interface_status_t interface_detect_beat_ethtool(int fd, char *iface) {
     struct ifreq ifr;
     struct ethtool_value edata;
 
-    if (interface_auto_up)
-        interface_up(fd, iface);
-    
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, iface, sizeof(ifr.ifr_name)-1);
 
@@ -158,9 +91,6 @@ interface_status_t interface_detect_beat_ethtool(int fd, char *iface) {
     ifr.ifr_data = (caddr_t) &edata;
 
     if (ioctl(fd, SIOCETHTOOL, &ifr) == -1) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "ETHTOOL_GLINK failed: %s", strerror(errno));
-        
         return IFSTATUS_ERR;
     }
 
@@ -171,16 +101,10 @@ interface_status_t interface_detect_beat_iff(int fd, char *iface) {
 
     struct ifreq ifr;
 
-    if (interface_auto_up)
-        interface_up(fd, iface);
-
     memset(&ifr, 0, sizeof(ifr));
     strncpy(ifr.ifr_name, iface, sizeof(ifr.ifr_name)-1);
 
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) == -1) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "SIOCGIFFLAGS failed: %s", strerror(errno));
-
         return IFSTATUS_ERR;
     }
 
@@ -196,9 +120,6 @@ static int get_wlan_qual_old(char *iface) {
     l = strlen(iface);
     
     if (!(f = fopen("/proc/net/wireless", "r"))) {
-        if (interface_do_message)
-            daemon_log(LOG_WARNING, "Failed to open /proc/net/wireless: %s",strerror(errno));
-        
         return -1;
     }
     
@@ -226,11 +147,6 @@ static int get_wlan_qual_old(char *iface) {
     }
 
     fclose(f);
-
-    if (q < 0) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "Failed to find interface in /proc/net/wireless");
-    }
         
     return q;
 }
@@ -248,8 +164,6 @@ static int get_wlan_qual_new(int fd, char *iface) {
     req.u.data.flags = 1;
 
     if (ioctl(fd, SIOCGIWSTATS, &req) < 0) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "Failed to get interface quality: %s\n", strerror(errno));
         return -1;
     }
 
@@ -262,8 +176,6 @@ static int get_wlan_qual_new(int fd, char *iface) {
     req.u.data.flags = 0;
      
     if (ioctl(fd, SIOCGIWRANGE, &req) < 0) {
-        if (interface_do_message)
-            daemon_log(LOG_ERR, "SIOCGIWRANGE failed: %s\n", strerror(errno));
         return -1;
     }
     
@@ -294,15 +206,10 @@ interface_status_t interface_detect_beat_wlan(int fd, char *iface) {
     int q;
     struct iwreq req;
 
-    if (interface_auto_up)
-        interface_up(fd, iface);
-    
     memset(&req, 0, sizeof(req));
     strncpy(req.ifr_ifrn.ifrn_name, iface, IFNAMSIZ);
      
     if (ioctl(fd, SIOCGIWAP, &req) < 0) {
-        if (interface_do_message)
-            daemon_log(LOG_WARNING, "Failed to get AP address: %s",strerror(errno));
         return IFSTATUS_ERR;
     }
 
@@ -313,9 +220,6 @@ interface_status_t interface_detect_beat_wlan(int fd, char *iface) {
 
     if ((q = get_wlan_qual_new(fd, iface)) < 0)
         if ((q = get_wlan_qual_old(iface)) < 0) {
-            if (interface_do_message)
-                daemon_log(LOG_WARNING, "Failed to get wireless link quality.");
-            
             return IFSTATUS_ERR;
         }
     

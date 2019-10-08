@@ -21,12 +21,7 @@
  * Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
  */
 
-int interface_auto_up;
-int interface_do_message;
-
 typedef enum { IFSTATUS_UP, IFSTATUS_DOWN, IFSTATUS_ERR } interface_status_t;
-
-void interface_up(int fd, char *iface);
 
 interface_status_t interface_detect_beat_mii(int fd, char *iface);
 interface_status_t interface_detect_beat_priv(int fd, char *iface);
