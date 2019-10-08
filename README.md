@@ -51,7 +51,7 @@ This would, for example, also mark an interface as up if more than 1000 bytes ar
 
 ## Prerequisites
 
-To build ifplugo, one needs [libdaemon](http://0pointer.de/lennart/projects/libdaemon/) in addition to Go and C compilers.
+To build ifplugo, one needs Go and C compilers.
 Also, obviously, this is Linux-only.
 
 ## Example

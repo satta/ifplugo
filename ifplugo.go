@@ -17,8 +17,7 @@ package ifplugo
 // Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
 
 /*
-#cgo LDFLAGS: -ldaemon
-#include <interface.h>
+#include "interface.h"
 */
 import (
 	"C"
