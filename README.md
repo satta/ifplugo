@@ -3,7 +3,7 @@
 [![GoDoc](https://godoc.org/github.com/satta/ifplugo?status.svg)](http://godoc.org/github.com/satta/ifplugo)
 [![CircleCI](https://circleci.com/gh/satta/ifplugo.svg?style=shield)](https://circleci.com/gh/satta/ifplugo)
 
-ifplugo delivers network interface link information and link changes. It does this (on Linux) by using code from [ifplugd](http://0pointer.de/lennart/projects/ifplugd/) to gather the necessary status information, then emits a status summary on a given channel. This summary (`LinkStatusSample`) is emitted on the first invocation and each time the state changes for at least one monitored interface.
+ifplugo delivers network interface link information and link changes. It does this (on Linux) by querying kernel ioctls to gather the necessary status information, then emits a status summary on a given channel. This summary (`LinkStatusSample`) is emitted on the first invocation and each time the state changes for at least one monitored interface.
 
 ```Go
 type LinkStatusSample struct {
@@ -49,10 +49,9 @@ mon.CheckIncomingDelta(true, 1000)
 
 This would, for example, also mark an interface as up if more than 1000 bytes are received during the polling period, and mark the interface as down if there are ever less than 1000 bytes received in a polling period.
 
-## Prerequisites
+## Platform restrictions
 
-To build ifplugo, one needs Go and C compilers.
-Also, obviously, this is Linux-only.
+Obviously, this works on Linux only.
 
 ## Example
 
@@ -70,10 +69,8 @@ $
 
 ## Authors
 
-This source code includes parts of ifplugd, written by Lennart Poettering <mzvscyhtq (at) 0pointer (dot) de>.
-
-The Go component of the code was written by Sascha Steinbiss <sascha (at) steinbiss (dot) name>.
+Sascha Steinbiss <sascha (at) steinbiss (dot) name>.
 
 ## License
 
-GPL2
+MIT
