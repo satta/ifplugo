@@ -1,34 +1,13 @@
 package ifplugo
 
-// This file is part of ifplugo.
-//
-// ifplugo is free software; you can redistribute it and/or modify it
-// under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
-//
-// ifplugo is distributed in the hope that it will be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-// General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with ifplugo; if not, write to the Free Software Foundation,
-// Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
-
-/*
-#include "interface.h"
-*/
-import (
-	"C"
-)
-
 import (
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/shirou/gopsutil/net"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/unix"
 )
 
 // InterfaceStatus represents the link status of an interface.
@@ -45,12 +24,6 @@ const (
 	InterfaceErr
 )
 
-var statusLookup = map[C.interface_status_t]InterfaceStatus{
-	C.IFSTATUS_UP:   InterfaceUp,
-	C.IFSTATUS_DOWN: InterfaceDown,
-	C.IFSTATUS_ERR:  InterfaceErr,
-}
-
 func (s InterfaceStatus) String() string {
 	switch s {
 	case InterfaceUp:
@@ -64,6 +37,117 @@ func (s InterfaceStatus) String() string {
 	}
 }
 
+const (
+	ethtoolGlink = 0x0000000a
+	siocGiwap    = 0x8B15
+)
+
+type ifReq struct {
+	Name [unix.IFNAMSIZ]byte
+	Data uintptr
+}
+
+type iwReqApAddr struct {
+	_      uint16
+	saData [14]byte
+}
+
+type iwReq struct {
+	Name [unix.IFNAMSIZ]byte
+	Data iwReqApAddr
+}
+
+type ethtoolValue struct {
+	Cmd  uint32
+	Data uint32
+}
+
+type miiIoctl struct {
+	Phyid  uint16
+	Regnum uint16
+	Valin  uint16
+	Valout uint16
+}
+
+func detectBeatEthtool(fd int, iface string) (bool, error) {
+	ev := ethtoolValue{
+		Cmd: ethtoolGlink,
+	}
+	ifreq := ifReq{
+		Data: uintptr(unsafe.Pointer(&ev)),
+	}
+	copy(ifreq.Name[:], iface)
+
+	_, _, errno := syscall.RawSyscall(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(unix.SIOCETHTOOL), uintptr(unsafe.Pointer(&ifreq)))
+	if errno != 0 {
+		return false, errno
+	}
+
+	return ev.Data != 0, nil
+}
+
+func detectBeatMII(fd int, iface string) (bool, error) {
+	ifreq := ifReq{}
+	copy(ifreq.Name[:], iface)
+
+	_, _, errno := syscall.RawSyscall(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(unix.SIOCGMIIPHY), uintptr(unsafe.Pointer(&ifreq)))
+	if errno != 0 {
+		return false, errno
+	}
+	miioctl := (*miiIoctl)(unsafe.Pointer(&ifreq.Data))
+	miioctl.Regnum = 1
+
+	_, _, errno = syscall.RawSyscall(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(unix.SIOCGMIIREG), uintptr(unsafe.Pointer(&ifreq)))
+	if errno != 0 {
+		return false, errno
+	}
+	miioctl = (*miiIoctl)(unsafe.Pointer(&ifreq.Data))
+
+	return (miioctl.Valout & 0x0004) != 0, nil
+}
+
+func detectBeatIff(fd int, iface string) (bool, error) {
+	ifreq := ifReq{}
+	copy(ifreq.Name[:], iface)
+
+	_, _, errno := syscall.RawSyscall(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(unix.SIOCGIFFLAGS), uintptr(unsafe.Pointer(&ifreq)))
+	if errno != 0 {
+		return false, errno
+	}
+
+	return (ifreq.Data & unix.IFF_RUNNING) != 0, nil
+}
+
+func macIsSet(in []byte) bool {
+	b := 1
+
+	for i := 1; i < len(in); i++ {
+		if in[i] != in[0] {
+			b = 0
+			break
+		}
+	}
+
+	return b == 0 || (in[0] != 0xFF && in[0] != 0x44 && in[0] != 0x00)
+}
+
+func detectBeatWifi(fd int, iface string) (bool, error) {
+	iwreq := iwReq{}
+	copy(iwreq.Name[:], iface)
+
+	_, _, errno := syscall.RawSyscall(syscall.SYS_IOCTL, uintptr(fd),
+		uintptr(siocGiwap), uintptr(unsafe.Pointer(&iwreq)))
+	if errno != 0 {
+		return false, errno
+	}
+
+	return macIsSet(iwreq.Data.saData[:6]), nil
+}
+
 // GetLinkStatus returns, for a given interface, the corresponding status code
 // at the time of the call. If any error was encountered (e.g. invalid
 // interface, etc.) we simply return ifplugo.InterfaceErr.
@@ -75,18 +159,24 @@ func GetLinkStatus(iface string) (InterfaceStatus, error) {
 	}
 	defer syscall.Close(fd)
 
-	e := C.interface_detect_beat_ethtool(C.int(fd), C.CString(iface))
-	if e == C.IFSTATUS_ERR {
-		e = C.interface_detect_beat_mii(C.int(fd), C.CString(iface))
-		if e == C.IFSTATUS_ERR {
-			e = C.interface_detect_beat_wlan(C.int(fd), C.CString(iface))
-			if e == C.IFSTATUS_ERR {
-				e = C.interface_detect_beat_iff(C.int(fd), C.CString(iface))
+	e, err := detectBeatEthtool(fd, iface)
+	if err != nil {
+		e, err = detectBeatMII(fd, iface)
+		if err != nil {
+			e, err = detectBeatWifi(fd, iface)
+			if err != nil {
+				e, err = detectBeatIff(fd, iface)
 			}
 		}
 	}
 
-	return statusLookup[e], nil
+	if err != nil {
+		return InterfaceErr, err
+	}
+	if e {
+		return InterfaceUp, nil
+	}
+	return InterfaceDown, nil
 }
 
 // LinkStatusMonitor represents a concurrent software component that
